@@ -15,6 +15,10 @@ Thus benfiting from a more effective use of your available network bandwidth and
 * macOS, Linux, or Windows Subsystem for Linux (WSL)
 * [rsync](https://rsync.samba.org/)
 * [GNU Parallel](https://www.gnu.org/software/parallel/)
+  * macOS: `brew install moreutils`
+  * Linux
+    * Debian/Ubuntu: `sudo apt-get install moreutils`
+    * Fedora: `sudo dnf install moreutils-parallel`
 
 ## Quickstart
 
