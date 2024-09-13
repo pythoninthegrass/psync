@@ -1,0 +1,142 @@
+#!/usr/bin/env bash
+
+# shellcheck disable=SC2124
+
+set -eo pipefail
+
+# Inspired by https://gist.github.com/akorn/644855ddaa8065f564be
+
+# Define colours for stdout/stderr
+RED='\033[0;31m'
+ORANGE='\033[0;33m'
+GREEN='\033[0;32m'
+NC='\033[0m' 		# No Color
+
+# help function showing usage
+usage() {
+	cat <<- DESCRIPTION >&2
+	USAGE
+	    $(basename $0) [--parallel=N] [rsync args...]
+
+	OPTIONS
+	    --parallel=N    Use N parallel processes for transfer. Default is to use all available processors (nproc) or fal back to 10.
+
+	NOTES
+	    * Requires GNU Parallel.
+	    * Use with ssh-keys. Lots of password prompts will get very annoying.
+	    * Does an itemize-changes first, then chunks the resulting file list and launches N parallel rsyncs to transfer a chunk each.
+	    * Be a little careful with the options you pass through to rsync. Normal ones will work, you might want to test weird options upfront.
+	DESCRIPTION
+}
+
+check_dependencies() {
+	if ! command -v parallel &> /dev/null; then
+		echo -e "${RED}parallel could not be found${NC}"
+		exit 1
+	fi
+}
+
+parse_arguments() {
+	if [[ "$1" == --parallel=* ]]; then
+		PARALLEL_RSYNC="${1##*=}"
+		shift
+	else
+		PARALLEL_RSYNC=$(nproc 2> /dev/null || echo 10)
+	fi
+	echo -e "${GREEN}INFO: Using up to ${PARALLEL_RSYNC} processes for transfer ...${NC}"
+	RSYNC_ARGS="$@"
+}
+
+create_temp_dir() {
+	TMPDIR=$(mktemp -d)
+	trap 'rm -rf "${TMPDIR}"' EXIT
+}
+
+determine_file_list() {
+	echo -e "${GREEN}INFO: Determining file list for transfer ...${NC}"
+	# sorted by size (descending)
+	rsync ${RSYNC_ARGS} --out-format="%l %n" --no-v --dry-run 2> /dev/null \
+		| grep -v "sending incremental file list" \
+		| sort --numeric-sort --reverse \
+		> "${TMPDIR}/files.all"
+
+	# check for nothing-to-do
+	TOTAL_FILES=$(wc -l < "${TMPDIR}/files.all")
+	TOTAL_SIZE=$(awk '{ts+=$1}END{printf "%.0f", ts}' < "${TMPDIR}/files.all")
+	echo -e "${GREEN}INFO: ${TOTAL_FILES} ($(( TOTAL_SIZE/1024**2 )) MB) files to transfer.${NC}"
+	if [ "${TOTAL_FILES}" -eq "0" ]; then
+		echo -e "${ORANGE}WARN: Nothing to transfer :)${NC}"
+		exit 0
+	fi
+}
+
+array_min() {
+	ARR=("$@")
+	min_i=0
+	min_v=${ARR[$min_i]}
+	for i in "${!ARR[@]}"; do
+		v="${ARR[$i]}"
+		(( v < min_v )) && min_v=${v} && min_i=${i}
+	done
+	MIN_I="${min_i}"
+}
+
+initialize_chunks() {
+	for ((I = 0 ; I < PARALLEL_RSYNC ; I++ )); do
+		CHUNKS["${I}"]=0
+	done
+}
+
+balance_by_size() {
+	echo -e "${GREEN}INFO: Distributing files among chunks ...${NC}"
+	PROGRESS=0
+	SECONDS=0
+	while read -r FSIZE FPATH; do
+		PROGRESS=$((PROGRESS+1))
+
+		array_min "${CHUNKS[@]}"
+
+		CHUNKS[MIN_I]=$(( CHUNKS[MIN_I] + FSIZE ))
+		echo "${FPATH}" >> "${TMPDIR}/chunk.${MIN_I}"
+
+		if ! ((PROGRESS % 25000)); then
+			>&2 echo -e "${GREEN}INFO: ${PROGRESS} of ${TOTAL_FILES} (${SECONDS}s)${NC}"
+		fi
+	done < "${TMPDIR}/files.all"
+	echo -e "${GREEN}DONE (${SECONDS}s)${NC}"
+}
+
+reverse_alternate_chunks() {
+	for ((I = 1 ; I < PARALLEL_RSYNC ; I+=2 )); do
+		# If the list of files to transfer is small, we may not have any files to work with
+		if [ ! -f "${TMPDIR}/chunk.${I}" ]; then
+			continue
+		fi
+
+		tac "${TMPDIR}/chunk.${I}" > "${TMPDIR}/chunk.${I}.r" && mv "${TMPDIR}/chunk.${I}.r" "${TMPDIR}/chunk.${I}"
+	done
+}
+
+start_transfers() {
+	echo -e "${GREEN}INFO: Starting transfers ...${NC}"
+	find "${TMPDIR}" -type f -name "chunk.*" | parallel -j "${PARALLEL_RSYNC}" -t --verbose --progress rsync --files-from={} ${RSYNC_ARGS}
+	echo -e "${GREEN}DONE (${SECONDS}s)${NC}"
+}
+
+main() {
+	if [[ $# -eq 0 ]] || [[ "$1" = "-h" ]] || [[ "$1" = "--help" ]]; then
+		usage
+		exit 0
+	fi
+
+	check_dependencies
+	parse_arguments "$@"
+	create_temp_dir
+	determine_file_list
+	initialize_chunks
+	balance_by_size
+	reverse_alternate_chunks
+	start_transfers
+}
+
+main "$@"

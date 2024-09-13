@@ -1,3 +1,5 @@
+# psync
+
 This script is a simple drop-in replacement for `rsync` for parallelising your data transfer.
 
 Rsync is the tool of choice for copying/syncing data between locations.
@@ -8,7 +10,37 @@ This is a problem when transfering a large amount of data as it will take some t
 If your rsync contains lots of files, you can benefit from transfering files in parallel.
 Thus benfiting from a more effective use of your available network bandwidth and gettging the job done faster.
 
-# Usage
+## Requirements
+
+* macOS, Linux, or Windows Subsystem for Linux (WSL)
+* [rsync](https://rsync.samba.org/)
+* [GNU Parallel](https://www.gnu.org/software/parallel/)
+
+## Quickstart
+
+```bash
+git clone https://github.com/pythoninthegrass/psync.git
+cd ./psync
+./psync --help
+```
+
+## Symbolic Link
+
+To make this script a drop-in replacement for `rsync`, you can create a symbolic link to the script in a directory that is in your `PATH`:
+
+```bash
+mkdir -p ~/.local/bin
+cd ./psync
+ln -s $(pwd)/psync ~/.local/bin/psync
+```
+
+Add the following line to your `~/.bashrc` or `~/.bash_profile`:
+
+```bash
+export PATH=$HOME/.local/bin:$PATH
+```
+
+## Usage
 
 If your `rsync` command looks like this:
 
@@ -22,10 +54,10 @@ rsync \
 Simply replace the `rsync` executable for this script:
 
 ```bash
-./prsync \
-  --times --recursive --progress \
-  --exclude "raw_reads" --exclude ".snakemake" \
-  user@example.com:/my_remote_dir/ /my_local_dir/
+./psync \
+    --times --recursive --progress \
+    --exclude "raw_reads" --exclude ".snakemake" \
+    user@example.com:/my_remote_dir/ /my_local_dir/
 ```
 
 ## Number of Parallel Jobs
@@ -35,14 +67,14 @@ This is determined by `nproc` and if this fails, we fall back to `10` parallel j
 This behaviour can be overriden by using `--parallel` as the first command line argument to the script:
 
 ```bash
-./prsync \
-  --parallel=20 \
-  --times --recursive --progress \
-  --exclude "raw_reads" --exclude ".snakemake" \
-  user@example.com:/my_remote_dir/ /my_local_dir/
+./psync \
+    --parallel=20 \
+    --times --recursive --progress \
+    --exclude "raw_reads" --exclude ".snakemake" \
+    user@example.com:/my_remote_dir/ /my_local_dir/
 ```
 
-# Implementation
+## Implementation
 
 The list of files to be transfered is calulated by first running `rsync` in dry-run mode.
 It is then split into `N` chunks based on the value of `--parallel` (10 by default).
