@@ -50,9 +50,9 @@ If your `rsync` command looks like this:
 
 ```bash
 rsync \
-  --times --recursive --progress \
-  --exclude "raw_reads" --exclude ".snakemake" \
-  user@example.com:/my_remote_dir/ /my_local_dir/
+    --times --recursive --progress \
+    --exclude "raw_reads" --exclude ".snakemake" \
+    user@example.com:/my_remote_dir/ /my_local_dir/
 ```
 
 Simply replace the `rsync` executable for this script:
