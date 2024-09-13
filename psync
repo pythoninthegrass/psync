@@ -119,7 +119,7 @@ reverse_alternate_chunks() {
 
 start_transfers() {
 	echo -e "${GREEN}INFO: Starting transfers ...${NC}"
-	find "${TMPDIR}" -type f -name "chunk.*" | parallel -j "${PARALLEL_RSYNC}" -t --verbose --progress rsync --files-from={} ${RSYNC_ARGS}
+	find "${TMPDIR}" -type f -name "chunk.*" | parallel -j "${PARALLEL_RSYNC}" -t rsync --files-from={} ${RSYNC_ARGS}
 	echo -e "${GREEN}DONE (${SECONDS}s)${NC}"
 }
 
