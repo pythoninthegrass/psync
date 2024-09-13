@@ -87,3 +87,36 @@ Each "chunk" of files is then passed to parallel `rsync` process.
 To ensure a more balanced distribution of files among chunks, files are sorted by decreasing filesize and then assigned to the chunk with the least data to process.
 This ensures that chunks are of approximately the same size and have the same number of files to process.
 Thus parallel `rsync` processes will complete at around the same time.
+
+## TODO
+
+* `psync` is slower than `rsync` when file sizes are small
+  * repro w/`test_psync.sh`
+    ```bash
+    λ ./tests/test_psync.sh
+    Setting up test environment...
+    Generating fake data...
+    Generated 10000/10000 files (19s)
+    Fake data generation complete. Total size: 155 MB
+    Running standard rsync...
+        163,384,220 100%   70.19MB/s    0:00:02 (xfr#10000, to-chk=0/10001)  
+
+    real    0m2.313s
+    user    0m0.168s
+    sys     0m1.879s
+    Running psync with 4 parallel processes...
+    INFO: Using up to 4 processes for transfer ...
+    INFO: Determining file list for transfer ...
+    INFO:    10002 (156 MB) files to transfer.
+    INFO: Distributing files among chunks ...
+    WARNING: Invalid line encountered, skipping...
+    DONE (0s)
+    INFO: Starting transfers ...
+    DONE (34s)
+
+    real    0m34.675s
+    user    0m8.227s
+    sys     0m24.873s
+    Cleaning up...
+    Performance test complete.
+    ```
