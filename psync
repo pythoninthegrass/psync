@@ -41,7 +41,11 @@ parse_arguments() {
 		PARALLEL_RSYNC="${1##*=}"
 		shift
 	else
-		PARALLEL_RSYNC=$(nproc 2> /dev/null || echo 10)
+		if [[ $(uname) == "Darwin" ]]; then
+			PARALLEL_RSYNC=$(sysctl -n hw.ncpu 2> /dev/null || echo 10)
+		else
+			PARALLEL_RSYNC=$(nproc 2> /dev/null || echo 10)
+		fi
 	fi
 	echo -e "${GREEN}INFO: Using up to ${PARALLEL_RSYNC} processes for transfer ...${NC}"
 	RSYNC_ARGS="$@"
